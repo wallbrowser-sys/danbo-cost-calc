@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>暖房器具の電気代計算ツール</title>
+<meta name="description" content="消費電力・使用時間・電気単価から暖房器具の月額電気代を概算。電気毛布・足元ヒーター・セラミックファンヒーターなどのプリセット付き。">
+<meta name="robots" content="index,follow">
+<style>
+  :root {
+    --bg: #0f1419;
+    --card: #1a2332;
+    --line: #2d3a4f;
+    --text: #e8eef7;
+    --muted: #9aa8bc;
+    --accent: #ff6b4a;
+    --accent2: #3dd6c6;
+    --ok: #5eead4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Noto Sans JP", "Segoe UI", sans-serif;
+    background: linear-gradient(165deg, #0f1419 0%, #162032 50%, #0f1419 100%);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.45rem; margin: 0 0 8px; letter-spacing: 0.02em; }
+  .lead { color: var(--muted); font-size: 0.95rem; margin: 0 0 20px; }
+  .pr {
+    background: #2a1f18;
+    border: 1px solid #5a3a28;
+    color: #f0c9a8;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  .presets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  @media (min-width: 560px) {
+    .presets { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  .preset {
+    background: #121a26;
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 8px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 0.82rem;
+  }
+  .preset:hover, .preset.active {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 1px var(--accent2);
+  }
+  .preset strong { display: block; font-size: 0.9rem; margin-bottom: 2px; }
+  .preset span { color: var(--muted); }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+  .field { margin-bottom: 14px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  input[type="number"], select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #121a26;
+    color: var(--text);
+    font-size: 1rem;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent2); border-color: transparent; }
+  .unit { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+  .result {
+    background: linear-gradient(135deg, #1a2e2a, #1a2332);
+    border: 1px solid #2a5a50;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .result .big {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--ok);
+    margin: 4px 0 12px;
+  }
+  .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9rem; }
+  .metrics div {
+    background: rgba(0,0,0,0.25);
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .metrics .k { color: var(--muted); font-size: 0.78rem; }
+  .links a {
+    display: block;
+    color: #9fd4ff;
+    text-decoration: none;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.92rem;
+  }
+  .links a:last-child { border-bottom: none; }
+  .links a:hover { color: #fff; }
+  .note { font-size: 0.78rem; color: var(--muted); margin-top: 16px; }
+  footer { margin-top: 28px; font-size: 0.75rem; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>暖房器具の電気代計算ツール</h1>
+    <p class="lead">消費電力（W）・1日の使用時間・電気単価から、1日あたりと月額の電気代を概算します。</p>
+    <div class="pr">【PR】このページにはアフィリエイト（広告）リンクが含まれます。表示金額は概算であり、実際の請求とは異なる場合があります。</div>
+
+    <div class="card">
+      <h2>1. 器具を選ぶ（プリセット）</h2>
+      <div class="presets" id="presets"></div>
+    </div>
+
+    <div class="card">
+      <h2>2. 条件を入れる</h2>
+      <div class="field">
+        <label for="watts">消費電力</label>
+        <input type="number" id="watts" min="1" max="5000" step="1" value="45">
+        <div class="unit">ワット（W）。カタログや本体表示の値を使用</div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="hours">1日の使用時間</label>
+          <input type="number" id="hours" min="0.1" max="24" step="0.5" value="8">
+          <div class="unit">時間／日</div>
+        </div>
+        <div class="field">
+          <label for="days">使う日数（月）</label>
+          <input type="number" id="days" min="1" max="31" step="1" value="30">
+          <div class="unit">日／月</div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="rate">電気単価</label>
+        <input type="number" id="rate" min="1" max="100" step="0.1" value="31">
+        <div class="unit">円／kWh（目安。検針票や契約プランで確認）</div>
+      </div>
+      <div class="field">
+        <label for="ratePreset">単価の目安を入れる</label>
+        <select id="ratePreset">
+          <option value="">変更しない</option>
+          <option value="27">従量電灯など・やや安め（27円）</option>
+          <option value="31" selected>全国ざっくり目安（31円）</option>
+          <option value="35">深夜以外・やや高め（35円）</option>
+          <option value="40">高めの想定（40円）</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="result">
+      <div class="k" style="color:var(--muted);font-size:0.85rem">月額の電気代（概算）</div>
+      <div class="big" id="monthly">— 円</div>
+      <div class="metrics">
+        <div><div class="k">1日あたり</div><div id="daily">— 円</div></div>
+        <div><div class="k">1か月の電力量</div><div id="kwh">— kWh</div></div>
+        <div><div class="k">1時間あたり</div><div id="hourly">— 円</div></div>
+        <div><div class="k">選んでいる器具</div><div id="deviceLabel">カスタム</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>関連リンク（PR）</h2>
+      <div class="links" id="links"></div>
+      <p class="note">楽天リンクは準備中です（<code>{{A8_R10_DANBO}}</code>）。Amazonは機器種別にトラッキングIDを分けています。</p>
+    </div>
+
+    <p class="note">
+      計算式：月額 ≒ 消費電力(W) ÷ 1000 × 1日の時間 × 月の日数 × 単価(円/kWh)。<br>
+      ヒーターは設定温度や運転モードで実効Wが変わります。セラミックファンヒーターは強運転の表示Wを使うと高めに出やすいです。<br>
+      表示の金額は概算です。実際の請求・在庫・価格はリンク先で確認してください。
+    </p>
+    <footer>
+      暖房の電気代計算ツール／特定の個人・地域・職業には紐づきません。
+    </footer>
+  </div>
+
+<script>
+const PRESETS = [
+  { id: "mofu", name: "電気毛布（弱〜中）", watts: 45, hours: 8, days: 30, tag: "denkimofu-22", blurb: "約30〜60W帯" },
+  { id: "mofu_hi", name: "電気毛布（強め）", watts: 60, hours: 8, days: 30, tag: "denkimofu-22", blurb: "約55〜80W帯" },
+  { id: "ashi", name: "足元ヒーター", watts: 100, hours: 6, days: 22, tag: "danbo22-22", blurb: "約50〜150W帯" },
+  { id: "ceramic_lo", name: "セラミック（弱）", watts: 600, hours: 4, days: 30, tag: "danbo22-22", blurb: "約600W" },
+  { id: "ceramic_hi", name: "セラミック（強）", watts: 1200, hours: 3, days: 30, tag: "danbo22-22", blurb: "約1200W" },
+  { id: "oil", name: "オイルヒーター", watts: 900, hours: 8, days: 30, tag: "danbo22-22", blurb: "約700〜1500W帯" },
+  { id: "hotcarpet", name: "ホットカーペット", watts: 200, hours: 6, days: 30, tag: "danbo22-22", blurb: "約150〜300W帯" },
+  { id: "yutanpo", name: "電気湯たんぽ", watts: 400, hours: 0.25, days: 30, tag: "danbo22-22", blurb: "温め時のみ短時間" }
+];
+
+const LINKS = {
+  "denkimofu-22": [
+    { label: "Amazonで電気毛布を見る", url: "https://www.amazon.co.jp/s?k=%E9%9B%BB%E6%B0%97%E6%AF%9B%E5%B8%83&tag=denkimofu-22" }
+  ],
+  "danbo22-22": [
+    { label: "Amazonでセラミックファンヒーターを見る", url: "https://www.amazon.co.jp/s?k=%E3%82%BB%E3%83%A9%E3%83%9F%E3%83%83%E3%82%AF%E3%83%95%E3%82%A1%E3%83%B3%E3%83%92%E3%83%BC%E3%82%BF%E3%83%BC&tag=danbo22-22" },
+    { label: "Amazonで足元ヒーターを見る", url: "https://www.amazon.co.jp/s?k=%E8%B6%B3%E5%85%83%E3%83%92%E3%83%BC%E3%82%BF%E3%83%BC&tag=danbo22-22" },
+    { label: "Amazonでオイルヒーターを見る", url: "https://www.amazon.co.jp/s?k=%E3%82%AA%E3%82%A4%E3%83%AB%E3%83%92%E3%83%BC%E3%82%BF%E3%83%BC&tag=danbo22-22" }
+  ]
+};
+
+let activeTag = "danbo22-22";
+let activeId = null;
+
+function yen(n) {
+  return Math.round(n).toLocaleString("ja-JP") + " 円";
+}
+
+function calc() {
+  const w = Math.max(0, Number(document.getElementById("watts").value) || 0);
+  const h = Math.max(0, Number(document.getElementById("hours").value) || 0);
+  const d = Math.max(0, Number(document.getElementById("days").value) || 0);
+  const r = Math.max(0, Number(document.getElementById("rate").value) || 0);
+  const kwhDay = (w / 1000) * h;
+  const kwhMonth = kwhDay * d;
+  const daily = kwhDay * r;
+  const monthly = kwhMonth * r;
+  const hourly = (w / 1000) * r;
+  document.getElementById("monthly").textContent = yen(monthly);
+  document.getElementById("daily").textContent = yen(daily);
+  document.getElementById("kwh").textContent = kwhMonth.toFixed(2) + " kWh";
+  document.getElementById("hourly").textContent = yen(hourly);
+  renderLinks();
+}
+
+function renderLinks() {
+  const box = document.getElementById("links");
+  const list = LINKS[activeTag] || LINKS["danbo22-22"];
+  box.innerHTML = list.map(a => `<a href="${a.url}" rel="nofollow sponsored noopener" target="_blank">${a.label}</a>`).join("");
+}
+
+function applyPreset(p) {
+  activeId = p.id;
+  activeTag = p.tag;
+  document.getElementById("watts").value = p.watts;
+  document.getElementById("hours").value = p.hours;
+  document.getElementById("days").value = p.days;
+  document.getElementById("deviceLabel").textContent = p.name;
+  document.querySelectorAll(".preset").forEach(el => {
+    el.classList.toggle("active", el.dataset.id === p.id);
+  });
+  calc();
+}
+
+function buildPresets() {
+  const root = document.getElementById("presets");
+  root.innerHTML = PRESETS.map(p =>
+    `<button type="button" class="preset" data-id="${p.id}"><strong>${p.name}</strong><span>${p.blurb}・既定 ${p.watts}W</span></button>`
+  ).join("");
+  root.querySelectorAll(".preset").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const p = PRESETS.find(x => x.id === btn.dataset.id);
+      if (p) applyPreset(p);
+    });
+  });
+}
+
+["watts","hours","days","rate"].forEach(id => {
+  document.getElementById(id).addEventListener("input", () => {
+    activeId = null;
+    document.querySelectorAll(".preset").forEach(el => el.classList.remove("active"));
+    document.getElementById("deviceLabel").textContent = "カスタム";
+    if (id === "watts") {
+      const w = Number(document.getElementById("watts").value) || 0;
+      activeTag = w <= 80 ? "denkimofu-22" : "danbo22-22";
+    }
+    calc();
+  });
+});
+
+document.getElementById("ratePreset").addEventListener("change", e => {
+  if (e.target.value) {
+    document.getElementById("rate").value = e.target.value;
+    calc();
+  }
+});
+
+buildPresets();
+applyPreset(PRESETS[0]);
+</script>
+</body>
+</html>
